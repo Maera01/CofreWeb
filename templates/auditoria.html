@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Auditoria</h1>
+
+<ul>
+{% for e in eventos %}
+  <li>{{ e.data_hora }} - {{ e.usuario }} - {{ e.acao }}</li>
+{% endfor %}
+</ul>
+
+<a href="/dashboard">Voltar</a>
+{% endblock %}

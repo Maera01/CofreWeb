@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}Setores Disponíveis{% endblock %}
+
+{% block body %}
+
+<style>
+  .setores-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .setor-card {
+    background: #1a1a2e;
+    border: 1px solid #1f2937;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .setor-card:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(59,130,246,0.1);
+  }
+  .setor-card h2 { margin:0; font-size:16px; color:#f1f5f9; font-weight:600; }
+  .setor-count   { font-size:13px; color:#6b7280; }
+  .setor-icon {
+    width:40px; height:40px;
+    background:rgba(124,58,237,0.15);
+    border:1px solid rgba(124,58,237,0.3);
+    border-radius:10px;
+    display:flex; align-items:center;
+    justify-content:center;
+    font-size:18px; margin-bottom:4px;
+  }
+  .setor-btn {
+    margin-top:auto; text-align:center;
+    text-decoration:none; padding:8px 0;
+    border-radius:8px; font-size:14px;
+    font-weight:600; transition:all 0.2s;
+  }
+
+  /* ── MODAIS ── */
+  .modal .form-input {
+    background: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #374151 !important;
+    border-radius: 8px !important;
+  }
+  .modal .form-input:focus {
+    outline: none !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
+  }
+  .modal .form-label {
+    font-size:11px !important; text-transform:uppercase;
+    letter-spacing:.6px; color:#6b7280 !important;
+    margin-bottom:6px; display:block;
+  }
+  .modal-header {
+    display:flex; align-items:center; gap:12px;
+    margin-bottom:20px; padding-bottom:16px;
+    border-bottom:1px solid #1f2937;
+  }
+  .modal-header-icon {
+    width:40px; height:40px; border-radius:10px;
+    display:flex; align-items:center;
+    justify-content:center; font-size:18px; flex-shrink:0;
+  }
+  .modal-header-info h2 { margin:0; font-size:16px; color:#f1f5f9; font-weight:600; }
+  .modal-header-info span { font-size:12px; color:#6b7280; }
+  .modal-close-btn {
+    margin-left:auto; background:transparent; border:none;
+    color:#6b7280; font-size:18px; cursor:pointer;
+    padding:4px 8px; border-radius:6px; transition:all 0.2s;
+  }
+  .modal-close-btn:hover { background:#1f2937; color:#e2e8f0; }
+  .modal-footer-custom {
+    display:flex; gap:10px; justify-content:flex-end;
+    margin-top:20px; padding-top:16px;
+    border-top:1px solid #1f2937;
+  }
+  .btn-cancelar {
+    padding:9px 20px; background:transparent;
+    border:1px solid #374151; border-radius:8px;
+    color:#9ca3af; cursor:pointer; font-size:14px;
+    font-weight:500; transition:all 0.2s;
+  }
+  .btn-cancelar:hover { background:#1f2937; color:#e2e8f0; border-color:#4b5563; }
+  .btn-danger-confirm {
+    padding:9px 20px; background:#dc2626; border:none;
+    border-radius:8px; color:#fff; cursor:pointer;
+    font-size:14px; font-weight:600; transition:all 0.2s;
+  }
+  .btn-danger-confirm:hover { background:#b91c1c; transform:translateY(-1px); }
+
+  #lista-setores::-webkit-scrollbar { width:4px; }
+  #lista-setores::-webkit-scrollbar-thumb { background:#374151; border-radius:4px; }
+</style>
+
+
+<!-- ══════════════════════════════════════════════════════
+     TOPO
+══════════════════════════════════════════════════════ -->
+<!-- TOPO — botões removidos, ficam na sidebar -->
+<div class="topbar">
+  <div>
+    <h1 class="page-title">Setores Disponíveis</h1>
+    <div class="page-sub">
+      Usuário: <strong style="color:#e2e8f0;">{{ usuario }}</strong>
+      <span style="
+        display:inline-block; margin-left:8px;
+        background:{% if tipo == 'admin' %}rgba(59,130,246,0.15){% else %}rgba(16,185,129,0.15){% endif %};
+        color:{% if tipo == 'admin' %}#60a5fa{% else %}#34d399{% endif %};
+        border:1px solid {% if tipo == 'admin' %}rgba(59,130,246,0.3){% else %}rgba(16,185,129,0.3){% endif %};
+        border-radius:20px; padding:2px 10px;
+        font-size:11px; font-weight:600; letter-spacing:.5px;">
+        {{ tipo }}
+      </span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     GRID DE SETORES
+══════════════════════════════════════════════════════ -->
+<div class="content">
+  <div class="setores-grid">
+
+    {% if setores|length == 0 %}
+    <div style="
+      grid-column:1/-1; text-align:center;
+      padding:60px 20px; color:#4b5563;">
+      <div style="font-size:48px; margin-bottom:16px;">🗂️</div>
+      <p style="font-size:16px; margin:0 0 12px;">Nenhum setor cadastrado ainda.</p>
+      {% if tipo == "admin" %}
+      <button onclick="abrirModalSetores()" style="
+        padding:10px 20px;
+        background:linear-gradient(135deg,#7c3aed,#5b21b6);
+        border:none; border-radius:8px; color:#fff;
+        font-size:14px; font-weight:600; cursor:pointer;">
+        ⚙️ Criar primeiro setor
+      </button>
+      {% endif %}
+    </div>
+
+    {% else %}
+    {% for s in setores %}
+    <div class="setor-card" onclick="window.location='/setor/{{ s }}'">
+      <div class="setor-icon">🗂️</div>
+      <h2>{{ s }}</h2>
+      <div class="setor-count">
+        🔑 {{ contagem[s] }} senha{% if contagem[s] != 1 %}s{% endif %} cadastrada{% if contagem[s] != 1 %}s{% endif %}
+      </div>
+      <a class="btn btn-primary setor-btn"
+         href="/setor/{{ s }}"
+         onclick="event.stopPropagation()">
+        Abrir →
+      </a>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL: GERENCIAR SETORES
+══════════════════════════════════════════════════════ -->
+<div id="modal-setores" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:500px; width:100%;">
+
+    <div class="modal-header">
+      <div class="modal-header-icon"
+        style="background:linear-gradient(135deg,#7c3aed,#5b21b6);">⚙️</div>
+      <div class="modal-header-info">
+        <h2>Gerenciar Setores</h2>
+        <span>Criar ou excluir setores da empresa</span>
+      </div>
+      <button class="modal-close-btn" onclick="fecharModalSetores()">✕</button>
+    </div>
+
+    <div style="
+      background:rgba(37,99,235,0.08);
+      border:1px solid rgba(37,99,235,0.2);
+      border-radius:10px; padding:16px; margin-bottom:20px;">
+      <p style="margin:0 0 10px; font-size:12px; font-weight:600;
+                color:#60a5fa; text-transform:uppercase; letter-spacing:.5px;">
+        ➕ Novo Setor
+      </p>
+      <div style="display:flex; gap:8px;">
+        <input id="novo-setor" class="form-input"
+          placeholder="Ex: Financeiro, TI, RH..."
+          style="flex:1;"
+          onkeydown="if(event.key==='Enter') criarSetor()">
+        <button onclick="criarSetor()" style="
+          padding:9px 18px;
+          background:linear-gradient(135deg,#2563eb,#1d4ed8);
+          border:none; border-radius:8px; color:#fff;
+          font-size:13px; font-weight:600; cursor:pointer;
+          white-space:nowrap; transition:all 0.2s;">
+          + Criar
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <p style="margin:0 0 10px; font-size:12px; font-weight:600;
+                color:#6b7280; text-transform:uppercase; letter-spacing:.5px;">
+        📋 Setores Existentes
+      </p>
+      <div id="lista-setores" style="
+        display:flex; flex-direction:column; gap:8px;
+        max-height:300px; overflow-y:auto; padding-right:4px;">
+      </div>
+    </div>
+
+    <div class="modal-footer-custom">
+      <button class="btn-cancelar" onclick="fecharModalSetores()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL: CONFIRMAR EXCLUSÃO DE SETOR
+══════════════════════════════════════════════════════ -->
+<div id="modal-excluir-setor" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:430px;">
+
+    <div class="modal-header">
+      <div class="modal-header-icon"
+        style="background:linear-gradient(135deg,#dc2626,#b91c1c);">🗑</div>
+      <div class="modal-header-info">
+        <h2 style="color:#f87171;">Excluir Setor</h2>
+        <span>Esta ação não pode ser desfeita</span>
+      </div>
+      <button class="modal-close-btn" onclick="fecharModalExcluirSetor()">✕</button>
+    </div>
+
+    <div style="
+      background:rgba(220,38,38,0.08);
+      border:1px solid rgba(220,38,38,0.25);
+      border-radius:10px; padding:16px;">
+      <p style="margin:0; color:#d1d5db; font-size:14px; line-height:1.7;">
+        Você está prestes a excluir permanentemente o setor:<br>
+        <strong id="excluir-setor-nome" style="color:#f87171; font-size:15px;"></strong>
+        <br><br>
+        <span style="color:#fca5a5; font-size:13px;">
+          ⚠️ Todas as senhas deste setor também serão excluídas!
+        </span>
+      </p>
+    </div>
+
+    <input type="hidden" id="excluir-setor-id">
+
+    <div class="modal-footer-custom">
+      <button class="btn-cancelar" onclick="fecharModalExcluirSetor()">Cancelar</button>
+      <button class="btn-danger-confirm" onclick="excluirSetor()">🗑 Confirmar Exclusão</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- TOAST -->
+<div id="toast-dash" style="
+  display:none; position:fixed;
+  bottom:24px; right:24px; color:#fff;
+  padding:13px 22px; border-radius:10px;
+  font-size:14px; font-weight:600; z-index:9999;
+  box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  transition:opacity 0.35s ease; max-width:320px;">
+</div>
+
+
+<!-- JAVASCRIPT -->
+<script>
+
+function showToast(msg, cor = "#059669") {
+  const t = document.getElementById("toast-dash");
+  t.textContent = msg;
+  t.style.background = cor;
+  t.style.opacity = "1";
+  t.style.display = "block";
+  setTimeout(() => {
+    t.style.opacity = "0";
+    setTimeout(() => t.style.display = "none", 350);
+  }, 2800);
+}
+
+document.querySelectorAll(".modal-backdrop").forEach(b => {
+  b.addEventListener("click", function(e) {
+    if (e.target === this) this.style.display = "none";
+  });
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape")
+    document.querySelectorAll(".modal-backdrop").forEach(m => m.style.display = "none");
+});
+
+async function abrirModalSetores() {
+  await carregarSetores();
+  document.getElementById("modal-setores").style.display = "flex";
+}
+function fecharModalSetores() {
+  document.getElementById("modal-setores").style.display = "none";
+}
+
+async function carregarSetores() {
+  const lista = document.getElementById("lista-setores");
+  lista.innerHTML = `<div style="text-align:center; padding:20px; color:#4b5563;">Carregando...</div>`;
+
+  const res  = await fetch("/api/setores");
+  const json = await res.json();
+
+  if (!json.ok || json.setores.length === 0) {
+    lista.innerHTML = `
+      <div style="text-align:center; padding:30px; color:#4b5563; font-size:13px;">
+        <div style="font-size:32px; margin-bottom:8px;">🗂️</div>
+        Nenhum setor cadastrado ainda.
+      </div>`;
+    return;
+  }
+
+  lista.innerHTML = json.setores.map(s => `
+    <div style="
+      display:flex; align-items:center; justify-content:space-between;
+      background:#111827; border:1px solid #1f2937;
+      border-radius:8px; padding:10px 14px; transition:border-color 0.2s;"
+      onmouseover="this.style.borderColor='#374151'"
+      onmouseout="this.style.borderColor='#1f2937'">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="
+          width:34px; height:34px;
+          background:rgba(124,58,237,0.15);
+          border:1px solid rgba(124,58,237,0.3);
+          border-radius:8px;
+          display:flex; align-items:center;
+          justify-content:center; font-size:15px;">🗂️</div>
+        <div>
+          <div style="color:#e2e8f0; font-size:14px; font-weight:500;">${s.nome}</div>
+          <div style="color:#6b7280; font-size:11px; margin-top:2px;">
+            🔑 ${s.qtd} senha${s.qtd !== 1 ? 's' : ''} cadastrada${s.qtd !== 1 ? 's' : ''}
+          </div>
+        </div>
+      </div>
+      <button onclick="confirmarExcluirSetor('${s.nome}')"
+        style="padding:6px 12px; background:rgba(220,38,38,0.08);
+               border:1px solid rgba(220,38,38,0.25); border-radius:6px;
+               color:#f87171; cursor:pointer; font-size:12px;
+               font-weight:500; transition:all 0.2s;"
+        onmouseover="this.style.background='rgba(220,38,38,0.2)'"
+        onmouseout="this.style.background='rgba(220,38,38,0.08)'">
+        🗑 Excluir
+      </button>
+    </div>
+  `).join("");
+}
+
+async function criarSetor() {
+  const nome = document.getElementById("novo-setor").value.trim();
+  if (!nome) { showToast("⚠️ Digite o nome do setor.", "#d97706"); return; }
+
+  const res  = await fetch("/api/setor/criar", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ nome })
+  });
+  const json = await res.json();
+
+  if (json.ok) {
+    document.getElementById("novo-setor").value = "";
+    showToast("✅ Setor criado!");
+    await carregarSetores();
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    showToast("❌ " + (json.erro || "Erro ao criar setor."), "#dc2626");
+  }
+}
+
+function confirmarExcluirSetor(nome) {
+  document.getElementById("excluir-setor-nome").textContent = nome;
+  document.getElementById("excluir-setor-id").value = nome;
+  document.getElementById("modal-setores").style.display       = "none";
+  document.getElementById("modal-excluir-setor").style.display = "flex";
+}
+function fecharModalExcluirSetor() {
+  document.getElementById("modal-excluir-setor").style.display = "none";
+  document.getElementById("modal-setores").style.display       = "flex";
+}
+
+async function excluirSetor() {
+  const nome = document.getElementById("excluir-setor-id").value;
+  const res  = await fetch("/api/setor/excluir", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ nome })
+  });
+  const json = await res.json();
+
+  if (json.ok) {
+    document.getElementById("modal-excluir-setor").style.display = "none";
+    showToast("🗑 Setor excluído!", "#dc2626");
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    showToast("❌ " + (json.erro || "Erro ao excluir setor."), "#dc2626");
+    fecharModalExcluirSetor();
+  }
+}
+
+</script>
+
+{% endblock %}

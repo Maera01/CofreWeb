@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Usuários{% endblock %}
+
+{% block body %}
+
+<style>
+  .modal .form-input,
+  .modal select.form-input {
+    background: #1a1a2e !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #374151 !important;
+    border-radius: 8px !important;
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 14px;
+  }
+  .modal .form-input:focus,
+  .modal select.form-input:focus {
+    outline: none !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
+  }
+  .modal .form-label {
+    font-size: 11px !important;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #6b7280 !important;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .modal .form-group { margin-bottom: 14px; }
+
+  .modal-header {
+    display:flex; align-items:center; gap:12px;
+    margin-bottom:20px; padding-bottom:16px;
+    border-bottom:1px solid #1f2937;
+  }
+  .modal-header-icon {
+    width:40px; height:40px; border-radius:10px;
+    display:flex; align-items:center;
+    justify-content:center; font-size:18px; flex-shrink:0;
+  }
+  .modal-header-info h2 { margin:0; font-size:16px; color:#f1f5f9; font-weight:600; }
+  .modal-header-info span { font-size:12px; color:#6b7280; }
+  .modal-close-btn {
+    margin-left:auto; background:transparent; border:none;
+    color:#6b7280; font-size:18px; cursor:pointer;
+    padding:4px 8px; border-radius:6px; transition:all 0.2s;
+  }
+  .modal-close-btn:hover { background:#1f2937; color:#e2e8f0; }
+
+  .modal-footer-custom {
+    display:flex; gap:10px; justify-content:flex-end;
+    margin-top:20px; padding-top:16px;
+    border-top:1px solid #1f2937;
+  }
+  .btn-cancelar {
+    padding:9px 20px; background:transparent;
+    border:1px solid #374151; border-radius:8px;
+    color:#9ca3af; cursor:pointer; font-size:14px;
+    font-weight:500; transition:all 0.2s;
+  }
+  .btn-cancelar:hover { background:#1f2937; color:#e2e8f0; }
+  .btn-salvar {
+    padding:9px 20px;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);
+    border:none; border-radius:8px; color:#fff;
+    cursor:pointer; font-size:14px; font-weight:600; transition:all 0.2s;
+  }
+  .btn-salvar:hover { transform:translateY(-1px); }
+  .btn-danger-confirm {
+    padding:9px 20px; background:#dc2626; border:none;
+    border-radius:8px; color:#fff; cursor:pointer;
+    font-size:14px; font-weight:600; transition:all 0.2s;
+  }
+  .btn-danger-confirm:hover { background:#b91c1c; transform:translateY(-1px); }
+
+  .tabela-usuarios tr:hover { background:rgba(255,255,255,0.03); }
+
+  .perms-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;
+  }
+  .perm-item {
+    display:flex; align-items:center; gap:8px;
+    background:#111827; border:1px solid #1f2937;
+    border-radius:8px; padding:8px 12px;
+    cursor:pointer; transition:all 0.2s;
+  }
+  .perm-item:hover { border-color:#374151; background:#1a1a2e; }
+  .perm-item input[type="checkbox"] {
+    width:16px; height:16px;
+    accent-color:#2563eb; cursor:pointer; flex-shrink:0;
+  }
+  .perm-item span { font-size:13px; color:#d1d5db; user-select:none; }
+
+  .setores-check-grid {
+    display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;
+  }
+  .setor-check-item {
+    display:flex; align-items:center; gap:6px;
+    background:#111827; border:1px solid #1f2937;
+    border-radius:20px; padding:5px 12px;
+    cursor:pointer; transition:all 0.2s;
+  }
+  .setor-check-item:hover { border-color:#7c3aed; }
+  .setor-check-item.ativo {
+    border-color:#7c3aed; background:rgba(124,58,237,0.1);
+  }
+  .setor-check-item input[type="checkbox"] { accent-color:#7c3aed; }
+  .setor-check-item span { font-size:13px; color:#d1d5db; user-select:none; }
+
+  .badge-admin {
+    background:rgba(59,130,246,0.15); color:#60a5fa;
+    border:1px solid rgba(59,130,246,0.3);
+    border-radius:20px; padding:2px 10px;
+    font-size:11px; font-weight:600;
+  }
+  .badge-usuario {
+    background:rgba(16,185,129,0.15); color:#34d399;
+    border:1px solid rgba(16,185,129,0.3);
+    border-radius:20px; padding:2px 10px;
+    font-size:11px; font-weight:600;
+  }
+</style>
+
+
+<!-- TOPO -->
+<div class="topbar">
+  <div>
+    <h1 class="page-title">Gerenciar Usuários</h1>
+    <div class="page-sub">Controle de acesso e permissões</div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <a href="/dashboard" class="btn btn-ghost">← Voltar</a>
+    <button onclick="abrirModalCriar()" style="
+      padding:10px 18px;
+      background:linear-gradient(135deg,#2563eb,#1d4ed8);
+      border:none; border-radius:8px; color:#fff;
+      font-size:14px; font-weight:600; cursor:pointer;
+      display:flex; align-items:center; gap:8px; transition:all 0.2s;"
+      onmouseover="this.style.transform='translateY(-1px)'"
+      onmouseout="this.style.transform='translateY(0)'">
+      + Novo Usuário
+    </button>
+  </div>
+</div>
+
+
+<!-- TABELA -->
+<div class="content">
+  <div class="card">
+    {% if not usuarios %}
+    <div style="text-align:center; padding:50px 0; color:#4b5563;">
+      <div style="font-size:40px; margin-bottom:12px;">👤</div>
+      <p style="font-size:15px; margin:0;">Nenhum usuário cadastrado.</p>
+    </div>
+    {% else %}
+    <table class="tabela-usuarios" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid #1f2937;">
+          <th style="text-align:left; padding:12px 10px; color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.5px;">Usuário</th>
+          <th style="text-align:left; padding:12px 10px; color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.5px;">Tipo</th>
+          <th style="text-align:left; padding:12px 10px; color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.5px;">Setores</th>
+          <th style="text-align:left; padding:12px 10px; color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.5px;">Permissões</th>
+          <th style="text-align:center; padding:12px 10px; color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.5px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for nome, u in usuarios.items() %}
+        <tr style="border-bottom:1px solid #111827;">
+          <td style="padding:12px 10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="
+                width:34px; height:34px;
+                background:{% if u.tipo == 'admin' %}rgba(59,130,246,0.15){% else %}rgba(16,185,129,0.15){% endif %};
+                border:1px solid {% if u.tipo == 'admin' %}rgba(59,130,246,0.3){% else %}rgba(16,185,129,0.3){% endif %};
+                border-radius:50%;
+                display:flex; align-items:center;
+                justify-content:center; font-size:15px;">👤</div>
+              <div>
+                <div style="color:#f1f5f9; font-weight:500;">{{ nome }}</div>
+                {% if nome == usuario_logado %}
+                <div style="font-size:11px; color:#6b7280;">você</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td style="padding:12px 10px;">
+            <span class="badge-{{ u.tipo }}">{{ u.tipo }}</span>
+          </td>
+          <td style="padding:12px 10px;">
+            {% if u.tipo == "admin" %}
+              <span style="color:#6b7280; font-size:13px; font-style:italic;">Todos</span>
+            {% else %}
+              <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                {% for s in u.setores %}
+                <span style="background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.25); color:#a78bfa; border-radius:12px; padding:2px 8px; font-size:11px;">{{ s }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </td>
+          <td style="padding:12px 10px;">
+            {% if u.tipo == "admin" %}
+              <span style="color:#6b7280; font-size:13px; font-style:italic;">Acesso total</span>
+            {% else %}
+              <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                {% for p in u.permissoes %}
+                <span style="background:rgba(5,150,105,0.12); border:1px solid rgba(5,150,105,0.25); color:#6ee7b7; border-radius:12px; padding:2px 8px; font-size:11px;">{{ p }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </td>
+          <td style="padding:12px 10px; text-align:center;">
+            <div style="display:flex; gap:6px; justify-content:center;">
+              <button onclick="abrirModalEditar('{{ nome }}')"
+                style="padding:5px 13px; background:#059669; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer; transition:background 0.2s;"
+                onmouseover="this.style.background='#047857'"
+                onmouseout="this.style.background='#059669'">✏️ Editar</button>
+              {% if nome != usuario_logado %}
+              <button onclick="confirmarExcluir('{{ nome }}')"
+                style="padding:5px 13px; background:#dc2626; color:#fff; border:none; border-radius:6px; font-size:13px; cursor:pointer; transition:background 0.2s;"
+                onmouseover="this.style.background='#b91c1c'"
+                onmouseout="this.style.background='#dc2626'">🗑 Excluir</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- MODAL: CRIAR -->
+<div id="modal-criar" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:520px; max-height:90vh; overflow-y:auto;">
+    <div class="modal-header">
+      <div class="modal-header-icon" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);">👤</div>
+      <div class="modal-header-info">
+        <h2>Novo Usuário</h2>
+        <span>Preencha os dados e defina as permissões</span>
+      </div>
+      <button class="modal-close-btn" onclick="fecharModalCriar()">✕</button>
+    </div>
+
+    <div style="background:rgba(37,99,235,0.06); border:1px solid rgba(37,99,235,0.15); border-radius:10px; padding:14px; margin-bottom:14px;">
+      <p style="margin:0 0 12px; font-size:12px; font-weight:600; color:#60a5fa; text-transform:uppercase; letter-spacing:.5px;">📋 Dados de Acesso</p>
+      <div class="form-group">
+        <label class="form-label">Nome de usuário</label>
+        <input id="criar-usuario" class="form-input" placeholder="ex: joao.silva">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <div style="display:flex; gap:8px;">
+          <input id="criar-senha" class="form-input" type="password" placeholder="••••••••" style="flex:1;">
+          <button onclick="toggleCampo('criar-senha')" style="padding:8px 12px; background:#1a1a2e; border:1px solid #374151; border-radius:8px; color:#9ca3af; cursor:pointer; font-size:15px; flex-shrink:0;">👁</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Tipo de Conta</label>
+        <select id="criar-tipo" class="form-input" onchange="toggleCamposUsuario('criar')">
+          <option value="usuario">👤 Usuário comum</option>
+          <option value="admin">⭐ Administrador</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="criar-bloco-setores" style="background:rgba(124,58,237,0.06); border:1px solid rgba(124,58,237,0.15); border-radius:10px; padding:14px; margin-bottom:14px;">
+      <p style="margin:0 0 12px; font-size:12px; font-weight:600; color:#a78bfa; text-transform:uppercase; letter-spacing:.5px;">🗂️ Setores com Acesso</p>
+      <div id="criar-setores-check" class="setores-check-grid"></div>
+    </div>
+
+    <div id="criar-bloco-perms" style="background:rgba(5,150,105,0.06); border:1px solid rgba(5,150,105,0.15); border-radius:10px; padding:14px;">
+      <p style="margin:0 0 12px; font-size:12px; font-weight:600; color:#6ee7b7; text-transform:uppercase; letter-spacing:.5px;">🔑 Permissões</p>
+      <div class="perms-grid">
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="criar-perm-ver" value="ver" checked style="pointer-events:none;">
+          <span>👁 Ver senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="criar-perm-copiar" value="copiar" checked style="pointer-events:none;">
+          <span>📋 Copiar senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="criar-perm-adicionar" value="adicionar" style="pointer-events:none;">
+          <span>➕ Adicionar senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="criar-perm-editar" value="editar" style="pointer-events:none;">
+          <span>✏️ Editar senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)" style="grid-column:span 2;">
+          <input type="checkbox" id="criar-perm-excluir" value="excluir" style="pointer-events:none;">
+          <span>🗑 Excluir senhas</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-footer-custom">
+      <button class="btn-cancelar" onclick="fecharModalCriar()">Cancelar</button>
+      <button class="btn-salvar" onclick="criarUsuario()">💾 Criar Usuário</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: EDITAR -->
+<div id="modal-editar" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:520px; max-height:90vh; overflow-y:auto;">
+    <div class="modal-header">
+      <div class="modal-header-icon" style="background:linear-gradient(135deg,#059669,#047857);">✏️</div>
+      <div class="modal-header-info">
+        <h2>Editar Usuário</h2>
+        <span id="editar-titulo-nome" style="color:#a78bfa; font-weight:600;"></span>
+      </div>
+      <button class="modal-close-btn" onclick="fecharModalEditar()">✕</button>
+    </div>
+
+    <input type="hidden" id="editar-usuario-original">
+
+    <div style="background:rgba(5,150,105,0.06); border:1px solid rgba(5,150,105,0.15); border-radius:10px; padding:14px; margin-bottom:14px;">
+      <p style="margin:0 0 12px; font-size:12px; font-weight:600; color:#6ee7b7; text-transform:uppercase; letter-spacing:.5px;">📋 Dados de Acesso</p>
+      <div class="form-group">
+        <label class="form-label">Nome de usuário</label>
+        <input id="editar-usuario" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nova Senha <span style="color:#4b5563;">(em branco = não alterar)</span></label>
+        <div style="display:flex; gap:8px;">
+          <input id="editar-senha" class="form-input" type="password" placeholder="••••••••" style="flex:1;">
+          <button onclick="toggleCampo('editar-senha')" style="padding:8px 12px; background:#1a1a2e; border:1px solid #374151; border-radius:8px; color:#9ca3af; cursor:pointer; font-size:15px; flex-shrink:0;">👁</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Tipo de Conta</label>
+        <select id="editar-tipo" class="form-input" onchange="toggleCamposUsuario('editar')">
+          <option value="usuario">👤 Usuário comum</option>
+          <option value="admin">⭐ Administrador</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="editar-bloco-setores" style="background:rgba(124,58,237,0.06); border:1px solid rgba(124,58,237,0.15); border-radius:10px; padding:14px; margin-bottom:14px;">
+      <p style="margin:0 0 12px; font-size:12px; font-weight:600; color:#a78bfa; text-transform:uppercase; letter-spacing:.5px;">🗂️ Setores com Acesso</p>
+      <div id="editar-setores-check" class="setores-check-grid"></div>
+    </div>
+
+    <div id="editar-bloco-perms" style="background:rgba(37,99,235,0.06); border:1px solid rgba(37,99,235,0.15); border-radius:10px; padding:14px;">
+      <p style="margin:0 0 12px; font-size:12px; font-weight:600; color:#60a5fa; text-transform:uppercase; letter-spacing:.5px;">🔑 Permissões</p>
+      <div class="perms-grid">
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="editar-perm-ver" value="ver" style="pointer-events:none;">
+          <span>👁 Ver senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="editar-perm-copiar" value="copiar" style="pointer-events:none;">
+          <span>📋 Copiar senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="editar-perm-adicionar" value="adicionar" style="pointer-events:none;">
+          <span>➕ Adicionar senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)">
+          <input type="checkbox" id="editar-perm-editar" value="editar" style="pointer-events:none;">
+          <span>✏️ Editar senhas</span>
+        </label>
+        <label class="perm-item" onclick="togglePerm(this)" style="grid-column:span 2;">
+          <input type="checkbox" id="editar-perm-excluir" value="excluir" style="pointer-events:none;">
+          <span>🗑 Excluir senhas</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-footer-custom">
+      <button class="btn-cancelar" onclick="fecharModalEditar()">Cancelar</button>
+      <button class="btn-salvar" onclick="salvarEdicaoUsuario()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: EXCLUIR -->
+<div id="modal-excluir" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-header-icon" style="background:linear-gradient(135deg,#dc2626,#b91c1c);">🗑</div>
+      <div class="modal-header-info">
+        <h2 style="color:#f87171;">Excluir Usuário</h2>
+        <span>Esta ação não pode ser desfeita</span>
+      </div>
+      <button class="modal-close-btn" onclick="fecharModalExcluir()">✕</button>
+    </div>
+    <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25); border-radius:10px; padding:16px;">
+      <p style="margin:0; color:#d1d5db; font-size:14px; line-height:1.7;">
+        Você está prestes a excluir permanentemente o usuário:<br>
+        <strong id="excluir-nome-usuario" style="color:#f87171; font-size:15px;"></strong>
+        <br><br>
+        <span style="color:#fca5a5; font-size:13px;">⚠️ O usuário perderá todo o acesso ao sistema.</span>
+      </p>
+    </div>
+    <input type="hidden" id="excluir-usuario-id">
+    <div class="modal-footer-custom">
+      <button class="btn-cancelar" onclick="fecharModalExcluir()">Cancelar</button>
+      <button class="btn-danger-confirm" onclick="excluirUsuario()">🗑 Confirmar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- TOAST -->
+<div id="toast" style="display:none; position:fixed; bottom:24px; right:24px; color:#fff; padding:13px 22px; border-radius:10px; font-size:14px; font-weight:600; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,0.5); transition:opacity 0.35s ease; max-width:320px;"></div>
+
+
+<!-- DADOS PARA O JS -->
+<script>
+const TODOS_SETORES  = {{ setores | tojson }};
+const DADOS_USUARIOS = {{ usuarios | tojson }};
+</script>
+
+
+<!-- JAVASCRIPT -->
+<script>
+
+// ── UTILITÁRIOS ──────────────────────────────────────────────────────
+
+function toggleCampo(id) {
+  const c = document.getElementById(id);
+  c.type = c.type === "password" ? "text" : "password";
+}
+
+function togglePerm(label) {
+  const cb = label.querySelector("input");
+  cb.checked = !cb.checked;
+  label.style.borderColor = cb.checked ? "#2563eb" : "";
+  label.style.background  = cb.checked ? "rgba(37,99,235,0.1)" : "";
+}
+
+function showToast(msg, cor = "#059669") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.background = cor;
+  t.style.opacity = "1";
+  t.style.display = "block";
+  setTimeout(() => {
+    t.style.opacity = "0";
+    setTimeout(() => t.style.display = "none", 350);
+  }, 2800);
+}
+
+document.querySelectorAll(".modal-backdrop").forEach(b => {
+  b.addEventListener("click", function(e) {
+    if (e.target === this) this.style.display = "none";
+  });
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape")
+    document.querySelectorAll(".modal-backdrop").forEach(m => m.style.display = "none");
+});
+
+function toggleCamposUsuario(p) {
+  const tipo = document.getElementById(`${p}-tipo`).value;
+  document.getElementById(`${p}-bloco-setores`).style.display = tipo === "admin" ? "none" : "block";
+  document.getElementById(`${p}-bloco-perms`).style.display   = tipo === "admin" ? "none" : "block";
+}
+
+function renderSetores(containerId, selecionados = []) {
+  const cont = document.getElementById(containerId);
+  if (!TODOS_SETORES.length) {
+    cont.innerHTML = `<span style="color:#4b5563; font-size:13px;">Nenhum setor cadastrado.</span>`;
+    return;
+  }
+  cont.innerHTML = TODOS_SETORES.map(s => {
+    const ativo = selecionados.includes(s);
+    return `
+      <label class="setor-check-item ${ativo ? 'ativo' : ''}" onclick="toggleSetor(this)">
+        <input type="checkbox" value="${s}" ${ativo ? 'checked' : ''} style="pointer-events:none;">
+        <span>${s}</span>
+      </label>`;
+  }).join("");
+}
+
+function toggleSetor(label) {
+  const cb = label.querySelector("input");
+  cb.checked = !cb.checked;
+  label.classList.toggle("ativo", cb.checked);
+}
+
+function getSetoresSelecionados(containerId) {
+  return Array.from(
+    document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)
+  ).map(cb => cb.value);
+}
+
+function getPermissoes(p) {
+  return ["ver","copiar","adicionar","editar","excluir"]
+    .filter(x => document.getElementById(`${p}-perm-${x}`)?.checked);
+}
+
+function setPermissoes(p, lista) {
+  ["ver","copiar","adicionar","editar","excluir"].forEach(x => {
+    const el = document.getElementById(`${p}-perm-${x}`);
+    if (!el) return;
+    el.checked = lista.includes(x);
+    const label = el.closest(".perm-item");
+    if (label) {
+      label.style.borderColor = el.checked ? "#2563eb" : "";
+      label.style.background  = el.checked ? "rgba(37,99,235,0.1)" : "";
+    }
+  });
+}
+
+
+// ── MODAL CRIAR ──────────────────────────────────────────────────────
+
+function abrirModalCriar() {
+  document.getElementById("criar-usuario").value = "";
+  document.getElementById("criar-senha").value   = "";
+  document.getElementById("criar-tipo").value    = "usuario";
+  renderSetores("criar-setores-check", []);
+  setPermissoes("criar", ["ver","copiar"]);
+  toggleCamposUsuario("criar");
+  document.getElementById("modal-criar").style.display = "flex";
+}
+function fecharModalCriar() {
+  document.getElementById("modal-criar").style.display = "none";
+}
+
+async function criarUsuario() {
+  const tipo  = document.getElementById("criar-tipo").value;
+  const nome  = document.getElementById("criar-usuario").value.trim();
+  const senha = document.getElementById("criar-senha").value;
+
+  if (!nome || !senha) { showToast("⚠️ Preencha nome e senha.", "#d97706"); return; }
+
+  const setores    = tipo === "admin" ? [] : getSetoresSelecionados("criar-setores-check");
+  const permissoes = tipo === "admin" ? [] : getPermissoes("criar");
+
+  if (tipo !== "admin" && !setores.length)    { showToast("⚠️ Selecione ao menos 1 setor.", "#d97706"); return; }
+  if (tipo !== "admin" && !permissoes.length) { showToast("⚠️ Selecione ao menos 1 permissão.", "#d97706"); return; }
+
+  const res  = await fetch("/api/usuario/criar", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ nome, senha, tipo, setores, permissoes })
+  });
+  const json = await res.json();
+
+  if (json.ok) {
+    fecharModalCriar();
+    showToast("✅ Usuário criado!");
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    showToast("❌ " + (json.erro || "Erro ao criar."), "#dc2626");
+  }
+}
+
+
+// ── MODAL EDITAR ─────────────────────────────────────────────────────
+
+function abrirModalEditar(nome) {
+  const u = DADOS_USUARIOS[nome];
+  if (!u) return;
+  document.getElementById("editar-usuario-original").value  = nome;
+  document.getElementById("editar-titulo-nome").textContent = nome;
+  document.getElementById("editar-usuario").value = nome;
+  document.getElementById("editar-senha").value   = "";
+  document.getElementById("editar-tipo").value    = u.tipo;
+  renderSetores("editar-setores-check", u.setores || []);
+  setPermissoes("editar", u.permissoes || []);
+  toggleCamposUsuario("editar");
+  document.getElementById("modal-editar").style.display = "flex";
+}
+function fecharModalEditar() {
+  document.getElementById("modal-editar").style.display = "none";
+}
+
+async function salvarEdicaoUsuario() {
+  const original = document.getElementById("editar-usuario-original").value;
+  const tipo     = document.getElementById("editar-tipo").value;
+  const nome     = document.getElementById("editar-usuario").value.trim();
+  const senha    = document.getElementById("editar-senha").value;
+
+  if (!nome) { showToast("⚠️ Nome não pode ser vazio.", "#d97706"); return; }
+
+  const setores    = tipo === "admin" ? [] : getSetoresSelecionados("editar-setores-check");
+  const permissoes = tipo === "admin" ? [] : getPermissoes("editar");
+
+  if (tipo !== "admin" && !setores.length)    { showToast("⚠️ Selecione ao menos 1 setor.", "#d97706"); return; }
+  if (tipo !== "admin" && !permissoes.length) { showToast("⚠️ Selecione ao menos 1 permissão.", "#d97706"); return; }
+
+  const res  = await fetch("/api/usuario/editar", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ original, nome, senha, tipo, setores, permissoes })
+  });
+  const json = await res.json();
+
+  if (json.ok) {
+    fecharModalEditar();
+    showToast("✅ Usuário atualizado!");
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    showToast("❌ " + (json.erro || "Erro ao editar."), "#dc2626");
+  }
+}
+
+
+// ── MODAL EXCLUIR ────────────────────────────────────────────────────
+
+function confirmarExcluir(nome) {
+  document.getElementById("excluir-nome-usuario").textContent = nome;
+  document.getElementById("excluir-usuario-id").value = nome;
+  document.getElementById("modal-excluir").style.display = "flex";
+}
+function fecharModalExcluir() {
+  document.getElementById("modal-excluir").style.display = "none";
+}
+
+async function excluirUsuario() {
+  const nome = document.getElementById("excluir-usuario-id").value;
+  const res  = await fetch("/api/usuario/excluir", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ nome })
+  });
+  const json = await res.json();
+  if (json.ok) {
+    fecharModalExcluir();
+    showToast("🗑 Usuário excluído!", "#dc2626");
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    showToast("❌ " + (json.erro || "Erro ao excluir."), "#dc2626");
+  }
+}
+
+</script>
+
+{% endblock %}

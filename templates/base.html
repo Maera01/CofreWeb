@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Cofre Digital{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:#0a0a0f;
+      --surface:#151515;
+      --panel:#1f1f1f;
+      --border:#2a2a2a;
+      --accent:#2f8cff;
+      --danger:#ef4444;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --mono:'DM Mono', monospace;
+      --sans:'Syne', sans-serif;
+    }
+
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html, body { height:100%; }
+
+    body {
+      background:var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      font-size:14px;
+    }
+
+    .app { display:flex; height:100vh; overflow:hidden; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width:260px; background:#111;
+      border-right:1px solid var(--border);
+      display:flex; flex-direction:column; padding:20px;
+    }
+    .sidebar-logo h1 { font-size:22px; font-weight:800; margin-bottom:6px; }
+    .sidebar-logo p  {
+      font-size:11px; color:var(--muted);
+      font-family:var(--mono); margin-bottom:30px;
+    }
+    .sidebar-nav { display:flex; flex-direction:column; gap:10px; }
+    .nav-section-label {
+      font-size:10px; text-transform:uppercase;
+      letter-spacing:.8px; color:#4b5563;
+      font-family:var(--mono); padding:4px 2px; margin-top:8px;
+    }
+    .nav-item {
+      padding:12px 16px; border-radius:10px;
+      background:var(--panel); color:var(--text);
+      text-decoration:none; font-weight:600; font-size:13px;
+      transition:.15s; text-align:left;
+      display:flex; align-items:center; gap:10px;
+      border:none; cursor:pointer; width:100%;
+    }
+    .nav-item:hover            { background:var(--accent); color:#fff; }
+    .nav-item-green:hover      { background:#059669; color:#fff; }
+    .nav-item-purple:hover     { background:#7c3aed; color:#fff; }
+    .nav-item-yellow:hover     { background:#d97706; color:#fff; }
+
+    .sidebar-footer {
+      margin-top:auto; padding-top:20px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .btn-logout {
+      display:block; padding:13px 16px; background:#dc2626;
+      color:#fff; text-align:center; border-radius:10px;
+      text-decoration:none; font-weight:700; font-size:13px; transition:.15s;
+    }
+    .btn-logout:hover { background:#b91c1c; }
+
+    /* ── MAIN ── */
+    .main { flex:1; overflow-y:auto; }
+    .topbar {
+      padding:30px 40px 10px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .page-title { font-size:28px; font-weight:800; }
+    .page-sub   { font-size:13px; color:var(--muted); font-family:var(--mono); margin-top:4px; }
+    .content    { padding:30px 40px 40px; }
+
+    /* ── GRID DE SETORES ── */
+    .setores-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+      gap:32px; margin-top:20px;
+    }
+    .setor-card {
+      background:var(--surface); border-radius:20px; padding:28px;
+      min-height:200px; display:flex; flex-direction:column;
+      justify-content:space-between; box-shadow:0 12px 30px rgba(0,0,0,.45);
+    }
+    .setor-card h2 { font-size:22px; font-weight:700; }
+    .setor-card p  { font-size:14px; color:var(--muted); margin-top:6px; }
+    .setor-btn {
+      display:block; margin-top:26px; padding:14px;
+      background:var(--accent); color:#fff; border-radius:12px;
+      text-align:center; text-decoration:none;
+      font-weight:700; font-size:15px; transition:.15s;
+    }
+    .setor-btn:hover { background:#539dff; }
+
+    /* ── BOTÕES ── */
+    .btn { padding:12px 18px; border-radius:10px; font-weight:700; cursor:pointer; border:none; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-ghost   { background:transparent; border:1px solid var(--border); color:var(--muted); }
+
+    /* ── MODAL ── */
+    .modal-backdrop {
+      position:fixed; inset:0; background:rgba(0,0,0,.75);
+      backdrop-filter:blur(4px); display:flex;
+      align-items:flex-start; justify-content:center;
+      padding-top:80px; z-index:1000;
+    }
+    .modal {
+      width:480px; background:var(--surface);
+      border-radius:20px; padding:32px;
+      box-shadow:0 30px 80px rgba(0,0,0,.6);
+    }
+
+    /* ── CARD ── */
+    .card {
+      background:var(--surface); border-radius:16px;
+      padding:24px; box-shadow:0 8px 24px rgba(0,0,0,.3);
+    }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom:16px; }
+    .form-label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; font-family:var(--mono); }
+    .form-input {
+      width:100%; padding:10px 14px; background:var(--panel);
+      border:1px solid var(--border); border-radius:8px;
+      color:var(--text); font-size:14px; font-family:var(--sans);
+    }
+    .form-input:focus { outline:none; border-color:var(--accent); }
+    .modal-title  { font-size:18px; font-weight:700; margin-bottom:20px; }
+    .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:24px; }
+  </style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>🔐 Cofre</h1>
+      <p>Digital Empresarial</p>
+    </div>
+
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Navegação</span>
+      <a class="nav-item" href="/dashboard">🏠 Painel de Setores</a>
+
+      {% if session.get('tipo') == 'admin' %}
+      <span class="nav-section-label">Administração</span>
+
+      <a class="nav-item nav-item-green" href="/usuarios">
+        👥 Gerenciar Usuários
+      </a>
+
+      <a class="nav-item nav-item-purple" href="#"
+        onclick="
+          event.preventDefault();
+          if(typeof abrirModalSetores === 'function') {
+            abrirModalSetores();
+          } else {
+            window.location.href='/dashboard';
+          }">
+        ⚙️ Gerenciar Setores
+      </a>
+
+      <a class="nav-item" href="/auditoria">
+        📋 Auditoria
+      </a>
+
+      <a class="nav-item nav-item-yellow" href="#"
+        onclick="event.preventDefault(); abrirModalSenhaMaster()">
+        🔑 Senha Master
+      </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <a class="btn-logout" href="/logout">🚪 Sair</a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    {% block body %}{% endblock %}
+  </main>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL: TIMEOUT DE SESSÃO
+══════════════════════════════════════════════════════ -->
+<div id="modal-timeout" style="
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.90);
+  backdrop-filter:blur(6px);
+  z-index:99999;
+  align-items:center;
+  justify-content:center;">
+  <div style="
+    background:#151515;
+    border:1px solid #374151;
+    border-radius:20px; padding:36px;
+    max-width:400px; width:90%;
+    text-align:center;
+    box-shadow:0 30px 80px rgba(0,0,0,0.8);">
+
+    <div style="
+      width:64px; height:64px;
+      background:linear-gradient(135deg,#d97706,#b45309);
+      border-radius:50%; display:flex;
+      align-items:center; justify-content:center;
+      font-size:30px; margin:0 auto 16px;">⏱️</div>
+
+    <h2 style="color:#f1f5f9; font-size:20px; font-weight:700; margin-bottom:8px;">
+      Sessão prestes a expirar!
+    </h2>
+
+    <p style="color:#9ca3af; font-size:14px; margin-bottom:16px; line-height:1.6;">
+      Você será desconectado por inatividade em:
+    </p>
+
+    <div id="timeout-contador" style="
+      font-size:56px; font-weight:800;
+      color:#f59e0b; margin-bottom:16px;
+      font-family:'DM Mono', monospace;
+      letter-spacing:4px;">
+      0:30
+    </div>
+
+    <p style="color:#6b7280; font-size:12px; margin-bottom:24px;">
+      Clique em <strong style="color:#e2e8f0;">Continuar</strong> para manter a sessão ativa.
+    </p>
+
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button onclick="encerrarSessao()" style="
+        padding:10px 20px; background:transparent;
+        border:1px solid #374151; border-radius:8px;
+        color:#9ca3af; cursor:pointer; font-size:14px;
+        font-weight:500; transition:all 0.2s;">
+        🚪 Sair agora
+      </button>
+      <button onclick="continuarSessao()" style="
+        padding:10px 28px;
+        background:linear-gradient(135deg,#2563eb,#1d4ed8);
+        border:none; border-radius:8px; color:#fff;
+        cursor:pointer; font-size:14px; font-weight:700;
+        transition:all 0.2s;">
+        ✅ Continuar
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL: SENHA MASTER
+══════════════════════════════════════════════════════ -->
+<div id="modal-senha-master" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:460px; width:100%;">
+
+    <div style="display:flex; align-items:center; gap:12px;
+                margin-bottom:20px; padding-bottom:16px;
+                border-bottom:1px solid #1f2937;">
+      <div style="width:40px; height:40px;
+                  background:linear-gradient(135deg,#d97706,#b45309);
+                  border-radius:10px; display:flex; align-items:center;
+                  justify-content:center; font-size:18px; flex-shrink:0;">🔑</div>
+      <div>
+        <h2 style="margin:0; font-size:16px; color:#f1f5f9; font-weight:600;">
+          Alterar Senha Master
+        </h2>
+        <span style="font-size:12px; color:#6b7280;">
+          Protege todos os dados do cofre
+        </span>
+      </div>
+      <button onclick="fecharModalSenhaMaster()" style="
+        margin-left:auto; background:transparent; border:none;
+        color:#6b7280; font-size:18px; cursor:pointer;
+        padding:4px 8px; border-radius:6px;">✕</button>
+    </div>
+
+    <div style="background:rgba(217,119,6,0.1);
+                border:1px solid rgba(217,119,6,0.3);
+                border-radius:10px; padding:14px; margin-bottom:20px;">
+      <p style="margin:0; color:#fcd34d; font-size:13px; line-height:1.6;">
+        ⚠️ <strong>Atenção:</strong> Ao alterar a senha master, todos os dados
+        serão <strong>re-criptografados</strong>. Guarde-a em local seguro!
+      </p>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="display:block; font-size:11px; text-transform:uppercase;
+                    letter-spacing:.6px; color:#6b7280; margin-bottom:6px;">
+        Senha Master Atual
+      </label>
+      <div style="display:flex; gap:8px;">
+        <input id="sm-atual" type="password" placeholder="••••••••"
+          style="flex:1; padding:10px 14px; background:#1a1a2e;
+                 color:#e2e8f0; border:1px solid #374151;
+                 border-radius:8px; font-size:14px;">
+        <button onclick="toggleSM('sm-atual')" style="
+          padding:8px 12px; background:#1a1a2e; border:1px solid #374151;
+          border-radius:8px; color:#9ca3af; cursor:pointer; font-size:15px;">👁</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="display:block; font-size:11px; text-transform:uppercase;
+                    letter-spacing:.6px; color:#6b7280; margin-bottom:6px;">
+        Nova Senha Master
+      </label>
+      <div style="display:flex; gap:8px;">
+        <input id="sm-nova" type="password" placeholder="••••••••"
+          oninput="verificarForcaSM()"
+          style="flex:1; padding:10px 14px; background:#1a1a2e;
+                 color:#e2e8f0; border:1px solid #374151;
+                 border-radius:8px; font-size:14px;">
+        <button onclick="toggleSM('sm-nova')" style="
+          padding:8px 12px; background:#1a1a2e; border:1px solid #374151;
+          border-radius:8px; color:#9ca3af; cursor:pointer; font-size:15px;">👁</button>
+        <button onclick="gerarSenhaMaster()" title="Gerar senha forte" style="
+          padding:8px 12px; background:#1a1a2e; border:1px solid #374151;
+          border-radius:8px; color:#9ca3af; cursor:pointer; font-size:15px;">🎲</button>
+      </div>
+      <div id="sm-forca-bar" style="height:4px; border-radius:2px; margin-top:8px;
+            width:0%; transition:all 0.3s ease; background:#dc2626;"></div>
+      <div id="sm-forca-label" style="font-size:11px; color:#6b7280; margin-top:4px;"></div>
+    </div>
+
+    <div style="margin-bottom:4px;">
+      <label style="display:block; font-size:11px; text-transform:uppercase;
+                    letter-spacing:.6px; color:#6b7280; margin-bottom:6px;">
+        Confirmar Nova Senha
+      </label>
+      <div style="display:flex; gap:8px;">
+        <input id="sm-confirmar" type="password" placeholder="••••••••"
+          style="flex:1; padding:10px 14px; background:#1a1a2e;
+                 color:#e2e8f0; border:1px solid #374151;
+                 border-radius:8px; font-size:14px;">
+        <button onclick="toggleSM('sm-confirmar')" style="
+          padding:8px 12px; background:#1a1a2e; border:1px solid #374151;
+          border-radius:8px; color:#9ca3af; cursor:pointer; font-size:15px;">👁</button>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;
+                margin-top:20px; padding-top:16px; border-top:1px solid #1f2937;">
+      <button onclick="fecharModalSenhaMaster()" style="
+        padding:9px 20px; background:transparent; border:1px solid #374151;
+        border-radius:8px; color:#9ca3af; cursor:pointer; font-size:14px; font-weight:500;">
+        Cancelar
+      </button>
+      <button onclick="alterarSenhaMaster()" style="
+        padding:9px 20px;
+        background:linear-gradient(135deg,#d97706,#b45309);
+        border:none; border-radius:8px; color:#fff;
+        cursor:pointer; font-size:14px; font-weight:600;">
+        🔑 Alterar Senha Master
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- TOAST GLOBAL -->
+<div id="toast-global" style="
+  display:none; position:fixed; bottom:24px; right:24px; color:#fff;
+  padding:13px 22px; border-radius:10px; font-size:14px; font-weight:600;
+  z-index:99999; box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  transition:opacity 0.35s ease; max-width:320px;"></div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     JAVASCRIPT GLOBAL
+══════════════════════════════════════════════════════ -->
+<script>
+
+// ── TOAST GLOBAL ─────────────────────────────────────────────────────
+function showToastGlobal(msg, cor = "#059669") {
+  const t = document.getElementById("toast-global");
+  t.textContent = msg;
+  t.style.background = cor;
+  t.style.opacity = "1";
+  t.style.display = "block";
+  setTimeout(() => {
+    t.style.opacity = "0";
+    setTimeout(() => t.style.display = "none", 350);
+  }, 3000);
+}
+
+// ── SENHA MASTER ─────────────────────────────────────────────────────
+function abrirModalSenhaMaster() {
+  ["sm-atual","sm-nova","sm-confirmar"].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = "";
+    el.type  = "password";
+  });
+  document.getElementById("sm-forca-bar").style.width   = "0%";
+  document.getElementById("sm-forca-label").textContent = "";
+  document.getElementById("modal-senha-master").style.display = "flex";
+}
+
+function fecharModalSenhaMaster() {
+  document.getElementById("modal-senha-master").style.display = "none";
+}
+
+function toggleSM(id) {
+  const c = document.getElementById(id);
+  c.type = c.type === "password" ? "text" : "password";
+}
+
+function gerarSenhaMaster() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=";
+  let senha = "";
+  for (let i = 0; i < 20; i++)
+    senha += chars.charAt(Math.floor(Math.random() * chars.length));
+  const campo = document.getElementById("sm-nova");
+  campo.value = senha;
+  campo.type  = "text";
+  verificarForcaSM();
+  showToastGlobal("🎲 Senha forte gerada! Anote-a em local seguro.", "#d97706");
+}
+
+function verificarForcaSM() {
+  const senha = document.getElementById("sm-nova").value;
+  const bar   = document.getElementById("sm-forca-bar");
+  const label = document.getElementById("sm-forca-label");
+
+  let forca = 0;
+  if (senha.length >= 8)          forca++;
+  if (senha.length >= 14)         forca++;
+  if (/[A-Z]/.test(senha))        forca++;
+  if (/[0-9]/.test(senha))        forca++;
+  if (/[^A-Za-z0-9]/.test(senha)) forca++;
+
+  const niveis = [
+    { pct:"20%",  cor:"#dc2626", txt:"Muito fraca" },
+    { pct:"40%",  cor:"#ef4444", txt:"Fraca"       },
+    { pct:"60%",  cor:"#d97706", txt:"Média"       },
+    { pct:"80%",  cor:"#16a34a", txt:"Forte"       },
+    { pct:"100%", cor:"#059669", txt:"Muito forte" },
+  ];
+
+  const nivel = niveis[Math.min(forca, 4)];
+  bar.style.width      = senha ? nivel.pct : "0%";
+  bar.style.background = nivel.cor;
+  label.style.color    = nivel.cor;
+  label.textContent    = senha ? nivel.txt : "";
+}
+
+async function alterarSenhaMaster() {
+  const atual     = document.getElementById("sm-atual").value;
+  const nova      = document.getElementById("sm-nova").value;
+  const confirmar = document.getElementById("sm-confirmar").value;
+
+  if (!atual || !nova || !confirmar) {
+    showToastGlobal("⚠️ Preencha todos os campos.", "#d97706"); return;
+  }
+  if (nova !== confirmar) {
+    showToastGlobal("❌ As senhas não coincidem.", "#dc2626"); return;
+  }
+  if (nova.length < 6) {
+    showToastGlobal("⚠️ A senha deve ter ao menos 6 caracteres.", "#d97706"); return;
+  }
+
+  const res  = await fetch("/api/senha-master/alterar", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ atual, nova })
+  });
+  const json = await res.json();
+
+  if (json.ok) {
+    fecharModalSenhaMaster();
+    showToastGlobal("✅ Senha master alterada! Faça login novamente.", "#059669");
+    setTimeout(() => window.location.href = "/logout", 2000);
+  } else {
+    showToastGlobal("❌ " + (json.erro || "Erro ao alterar."), "#dc2626");
+  }
+}
+
+
+// ── TIMEOUT DE SESSÃO ─────────────────────────────────────────────────
+(function () {
+
+  // ✅ Seus tempos personalizados
+  const TEMPO_LIMITE   = 2 * 60 * 1000;  // 2 minutos total
+  const TEMPO_AVISO    = 1 * 60 * 1000;  // aviso 1 minuto antes
+  const TEMPO_CONTAGEM = 30;             // 30 segundos no contador
+
+  let timerInatividade;
+  let timerAviso;
+  let timerContagem;
+  let contagem = TEMPO_CONTAGEM;
+
+  function formatarTempo(s) {
+    const m = Math.floor(s / 60);
+    const seg = s % 60;
+    return `${m}:${seg.toString().padStart(2, "0")}`;
+  }
+
+  function mostrarAviso() {
+    contagem = TEMPO_CONTAGEM;
+    const modal = document.getElementById("modal-timeout");
+    const contador = document.getElementById("timeout-contador");
+    contador.textContent = formatarTempo(contagem);
+    contador.style.color = "#f59e0b";
+
+    // ✅ Garante que o modal aparece como flex
+    modal.style.display = "flex";
+
+    clearInterval(timerContagem);
+    timerContagem = setInterval(() => {
+      contagem--;
+      contador.textContent = formatarTempo(contagem);
+
+      // Muda cor conforme urgência
+      if (contagem > 15)      contador.style.color = "#f59e0b";
+      else if (contagem > 5)  contador.style.color = "#ef4444";
+      else                    contador.style.color = "#dc2626";
+
+      if (contagem <= 0) {
+        clearInterval(timerContagem);
+        encerrarSessao();
+      }
+    }, 1000);
+  }
+
+  function encerrarSessao() {
+    clearInterval(timerContagem);
+    window.location.href = "/logout";
+  }
+
+  function continuarSessao() {
+    clearInterval(timerContagem);
+    document.getElementById("modal-timeout").style.display = "none";
+    resetarTimer();
+    fetch("/api/sessao/renovar", { method: "POST" }).catch(() => {});
+    showToastGlobal("✅ Sessão renovada com sucesso!");
+  }
+
+  function resetarTimer() {
+    clearTimeout(timerInatividade);
+    clearTimeout(timerAviso);
+
+    // ✅ Aviso aparece após TEMPO_LIMITE - TEMPO_AVISO
+    timerAviso       = setTimeout(mostrarAviso,    TEMPO_LIMITE - TEMPO_AVISO);
+    // ✅ Logout após TEMPO_LIMITE
+    timerInatividade = setTimeout(encerrarSessao,  TEMPO_LIMITE);
+  }
+
+  // ✅ Detecta qualquer atividade do usuário
+  ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach(ev => {
+    document.addEventListener(ev, () => {
+      if (document.getElementById("modal-timeout").style.display === "none") {
+        resetarTimer();
+      }
+    }, { passive: true });
+  });
+
+  // ✅ Inicia o timer ao carregar a página
+  resetarTimer();
+
+  // ✅ Expõe funções para os botões do modal
+  window.continuarSessao = continuarSessao;
+  window.encerrarSessao  = encerrarSessao;
+
+})();
+
+// Fechar modal senha master com ESC
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape")
+    document.getElementById("modal-senha-master").style.display = "none";
+});
+
+// Fechar clicando fora do modal senha master
+document.getElementById("modal-senha-master").addEventListener("click", function(e) {
+  if (e.target === this) this.style.display = "none";
+});
+
+</script>
+
+</body>
+</html>
