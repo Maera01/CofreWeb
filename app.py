@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from functools import wraps
 from datetime import timedelta
+from collections import defaultdict
+import time
 import core
 from core import init_db
 
@@ -8,12 +10,23 @@ from core import init_db
 init_db()
 
 app = Flask(__name__)
-app.secret_key = "cofre-digital-secret-2024"
+import os
+app.secret_key = os.environ.get("SECRET_KEY", "cofre-digital-secret-2024")
 
 # ✅ Sessão expira após 30 minutos de inatividade
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 app.config["SESSION_PERMANENT"] = True
 
+# ✅ Proteção contra força bruta
+tentativas = defaultdict(list)
+
+def verificar_tentativas(ip):
+    agora = time.time()
+    tentativas[ip] = [t for t in tentativas[ip] if agora - t < 300]
+    if len(tentativas[ip]) >= 5:
+        return False
+    tentativas[ip].append(agora)
+    return True
 
 # ✅ Renova o tempo a cada requisição
 @app.before_request
@@ -21,7 +34,7 @@ def renovar_sessao():
     session.modified = True
 
 
-# ─── DECORADORES ───────────────────────────────────────────────────────
+# ─── DECORADORES ───────────────────────────────────────────────────────────
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -49,13 +62,19 @@ def login():
         usuario  = request.form.get("usuario", "").strip()
         senha    = request.form.get("senha", "")
         s_master = request.form.get("senha_master", "")
+        ip       = request.remote_addr
+
+        # ✅ Verifica tentativas de login
+        if not verificar_tentativas(ip):
+            erro = "Muitas tentativas. Aguarde 5 minutos."
+            return render_template("login.html", erro=erro)
 
         usuarios = core.carregar_usuarios()
         config   = core.carregar_config()
 
         if usuario not in usuarios:
             erro = "Usuário não encontrado."
-        elif usuarios[usuario]["senha"] != senha:
+        elif usuarios[usuario]["senha"] != core._hash_senha(senha):
             erro = "Senha incorreta."
         else:
             if not config.get("senha_master_hash"):
@@ -108,7 +127,7 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ─── DASHBOARD ─────────────────────────────────────────────────────────
+# ─── DASHBOARD ─────────────────────────────────────────────────────────────
 @app.route("/dashboard")
 @login_required
 def dashboard():
@@ -426,7 +445,7 @@ def api_criar_usuario():
         return jsonify({"erro": f"Usuário '{nome}' já existe."}), 400
 
     usuarios[nome] = {
-        "senha":      senha,
+        "senha":      core._hash_senha(senha),  # ✅ Hash aqui!
         "tipo":       tipo,
         "setores":    setores    if tipo != "admin" else [],
         "permissoes": permissoes if tipo != "admin" else []
@@ -475,7 +494,7 @@ def api_editar_usuario():
     dados["permissoes"] = permissoes if tipo != "admin" else []
 
     if senha:
-        dados["senha"] = senha
+        dados["senha"] = core._hash_senha(senha)  # ✅ Hash aqui!
 
     if novo_nome != original:
         del usuarios[original]

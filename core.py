@@ -7,10 +7,13 @@ from psycopg2.extras import RealDictCursor
 # ─── CONEXÃO ───────────────────────────────────────────────────────────
 
 def get_conn():
-    return psycopg2.connect(os.environ.get("DATABASE_URL"), sslmode="require")
+    return psycopg2.connect(
+        os.environ.get("DATABASE_URL"),
+        sslmode="require",
+        connect_timeout=10
+    )
 
 def init_db():
-    """Cria as tabelas se não existirem."""
     conn = get_conn()
     cur = conn.cursor()
 
@@ -48,13 +51,13 @@ def init_db():
         );
     """)
 
-    # Admin padrão
+    # Admin padrão com senha em HASH
     cur.execute("SELECT * FROM usuarios WHERE username = 'admin'")
     if not cur.fetchone():
         cur.execute("""
             INSERT INTO usuarios (username, senha, tipo, setores, permissoes)
-            VALUES ('admin', 'admin123', 'admin', '[]', '[]')
-        """)
+            VALUES ('admin', %s, 'admin', '[]', '[]')
+        """, (_hash_senha("admin123"),))
 
     conn.commit()
     cur.close()
@@ -73,6 +76,10 @@ PERMISSOES_TODAS = ["ver", "copiar", "adicionar", "editar", "excluir"]
 
 def _hash(s):
     return hashlib.sha256(s.encode()).hexdigest()
+
+def _hash_senha(senha):
+    """Hash seguro para senhas de usuários."""
+    return hashlib.sha256(senha.encode()).hexdigest()
 
 def _fernet_key(s):
     return base64.urlsafe_b64encode(hashlib.sha256(s.encode()).digest())
@@ -185,7 +192,7 @@ def carregar_usuarios():
         usuarios[row["username"]] = {
             "senha":      row["senha"],
             "tipo":       row["tipo"],
-            "setores":    json.loads(row["setores"]   or "[]"),
+            "setores":    json.loads(row["setores"]    or "[]"),
             "permissoes": json.loads(row["permissoes"] or "[]")
         }
     return usuarios
@@ -214,7 +221,7 @@ def criar_usuario(username, senha, tipo, setores, permissoes=None):
     if username in u:
         raise ValueError("Usuário já existe.")
     u[username] = {
-        "senha":      senha,
+        "senha":      _hash_senha(senha),  # ✅ Senha com hash!
         "tipo":       tipo,
         "setores":    setores    if tipo != "admin" else [],
         "permissoes": permissoes if (tipo != "admin" and permissoes) else []
@@ -230,7 +237,7 @@ def editar_usuario(username, senha, tipo, setores, permissoes=None):
     dados["setores"]    = setores    if tipo != "admin" else []
     dados["permissoes"] = permissoes if (tipo != "admin" and permissoes) else []
     if senha:
-        dados["senha"] = senha
+        dados["senha"] = _hash_senha(senha)  # ✅ Senha com hash!
     u[username] = dados
     salvar_usuarios(u)
 
@@ -242,6 +249,13 @@ def excluir_usuario(username):
         raise ValueError("Usuário não encontrado.")
     del u[username]
     salvar_usuarios(u)
+
+def verificar_senha_usuario(username, senha):
+    """Verifica se a senha do usuário está correta."""
+    u = carregar_usuarios()
+    if username not in u:
+        return False
+    return u[username]["senha"] == _hash_senha(senha)
 
 
 # ─── AUDITORIA ─────────────────────────────────────────────────────────
