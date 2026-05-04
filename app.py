@@ -2,6 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from functools import wraps
 from datetime import timedelta
 import core
+from core import init_db
+
+# Inicializa o banco de dados
+init_db()
 
 app = Flask(__name__)
 app.secret_key = "cofre-digital-secret-2024"

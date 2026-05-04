@@ -1,11 +1,65 @@
-import json, os, hashlib, base64
+import os, hashlib, base64, json
+from datetime import datetime
 from cryptography.fernet import Fernet
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-DATA_DIR       = os.path.join(os.path.dirname(__file__), "data")
-CONFIG_FILE    = os.path.join(DATA_DIR, "cofre_config.json")
-COFRE_FILE     = os.path.join(DATA_DIR, "cofre_dados.json")
-USUARIOS_FILE  = os.path.join(DATA_DIR, "usuarios.json")
-AUDITORIA_FILE = os.path.join(DATA_DIR, "auditoria.json")
+# ─── CONEXÃO ───────────────────────────────────────────────────────────
+
+def get_conn():
+    return psycopg2.connect(os.environ.get("DATABASE_URL"), sslmode="require")
+
+def init_db():
+    """Cria as tabelas se não existirem."""
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            chave TEXT PRIMARY KEY,
+            valor TEXT
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            username    TEXT PRIMARY KEY,
+            senha       TEXT,
+            tipo        TEXT,
+            setores     TEXT,
+            permissoes  TEXT
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS cofre (
+            setor   TEXT,
+            dados   TEXT
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS auditoria (
+            id        SERIAL PRIMARY KEY,
+            data_hora TEXT,
+            usuario   TEXT,
+            acao      TEXT,
+            detalhes  TEXT
+        );
+    """)
+
+    # Admin padrão
+    cur.execute("SELECT * FROM usuarios WHERE username = 'admin'")
+    if not cur.fetchone():
+        cur.execute("""
+            INSERT INTO usuarios (username, senha, tipo, setores, permissoes)
+            VALUES ('admin', 'admin123', 'admin', '[]', '[]')
+        """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
 
 SETORES_PADRAO = [
     "Produção", "Qualidade", "Comercial", "Engenharia",
@@ -17,22 +71,6 @@ PERMISSOES_TODAS = ["ver", "copiar", "adicionar", "editar", "excluir"]
 
 # ─── HELPERS ───────────────────────────────────────────────────────────
 
-def _read(path, default):
-    if not os.path.exists(path):
-        _write(path, default)
-        return default
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            d = json.load(f)
-            return d if d else default
-    except:
-        return default
-
-def _write(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
 def _hash(s):
     return hashlib.sha256(s.encode()).hexdigest()
 
@@ -43,12 +81,33 @@ def _fernet_key(s):
 # ─── CONFIG ────────────────────────────────────────────────────────────
 
 def carregar_config():
-    default = {"setores": SETORES_PADRAO, "senha_master_hash": None}
-    return _read(CONFIG_FILE, default)
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT chave, valor FROM config")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    config = {"setores": SETORES_PADRAO, "senha_master_hash": None}
+    for row in rows:
+        if row["chave"] == "setores":
+            config["setores"] = json.loads(row["valor"])
+        elif row["chave"] == "senha_master_hash":
+            config["senha_master_hash"] = row["valor"]
+    return config
 
 def salvar_config(config: dict):
-    """Salva o arquivo de configuração."""
-    _write(CONFIG_FILE, config)
+    conn = get_conn()
+    cur = conn.cursor()
+    for chave, valor in config.items():
+        v = json.dumps(valor) if isinstance(valor, list) else (valor or "")
+        cur.execute("""
+            INSERT INTO config (chave, valor) VALUES (%s, %s)
+            ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor
+        """, (chave, v))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def definir_senha_master(nova):
     c = carregar_config()
@@ -64,72 +123,91 @@ def verificar_senha_master(s):
 
 # ─── COFRE ─────────────────────────────────────────────────────────────
 
-def _cofre_padrao(config):
-    return {s: [] for s in config["setores"]}
-
 def carregar_cofre(senha_master, config):
     if config.get("senha_master_hash"):
         if not verificar_senha_master(senha_master):
             raise Exception("Senha master incorreta.")
 
-    if not os.path.exists(COFRE_FILE):
-        salvar_cofre(_cofre_padrao(config), senha_master)
-        return {"setores": _cofre_padrao(config)}
+    fernet = Fernet(_fernet_key(senha_master))
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT setor, dados FROM cofre")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
 
-    try:
-        with open(COFRE_FILE, "rb") as f:
-            enc = f.read()
-        fernet = Fernet(_fernet_key(senha_master))
-        dados  = json.loads(fernet.decrypt(enc).decode())
-        for s in config["setores"]:
-            dados.setdefault(s, [])
-        return {"setores": dados}
-    except:
-        salvar_cofre(_cofre_padrao(config), senha_master)
-        return {"setores": _cofre_padrao(config)}
+    dados = {}
+    for row in rows:
+        try:
+            decrypted = fernet.decrypt(row["dados"].encode()).decode()
+            dados[row["setor"]] = json.loads(decrypted)
+        except:
+            dados[row["setor"]] = []
+
+    for s in config["setores"]:
+        dados.setdefault(s, [])
+
+    return {"setores": dados}
 
 def salvar_cofre(dados, senha_master):
     fernet = Fernet(_fernet_key(senha_master))
-    enc    = fernet.encrypt(json.dumps(dados, ensure_ascii=False).encode())
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(COFRE_FILE, "wb") as f:
-        f.write(enc)
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM cofre")
+
+    for setor, itens in dados.items():
+        encrypted = fernet.encrypt(
+            json.dumps(itens, ensure_ascii=False).encode()
+        ).decode()
+        cur.execute(
+            "INSERT INTO cofre (setor, dados) VALUES (%s, %s)",
+            (setor, encrypted)
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 # ─── USUÁRIOS ──────────────────────────────────────────────────────────
 
-def _usuarios_padrao():
-    """Usuário admin padrão com todas as permissões."""
-    return {
-        "admin": {
-            "senha":      "admin123",
-            "tipo":       "admin",
-            "setores":    [],           # admin acessa todos automaticamente
-            "permissoes": []            # admin tem todas automaticamente via código
-        }
-    }
-
 def carregar_usuarios():
-    usuarios = _read(USUARIOS_FILE, _usuarios_padrao())
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM usuarios")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
 
-    # ✅ Garante que todos os usuários tenham o campo permissoes
-    atualizado = False
-    for nome, u in usuarios.items():
-        if "permissoes" not in u:
-            u["permissoes"] = [] if u.get("tipo") == "admin" else ["ver", "copiar"]
-            atualizado = True
-        if "setores" not in u:
-            u["setores"] = []
-            atualizado = True
-
-    if atualizado:
-        salvar_usuarios(usuarios)
-
+    usuarios = {}
+    for row in rows:
+        usuarios[row["username"]] = {
+            "senha":      row["senha"],
+            "tipo":       row["tipo"],
+            "setores":    json.loads(row["setores"]   or "[]"),
+            "permissoes": json.loads(row["permissoes"] or "[]")
+        }
     return usuarios
 
 def salvar_usuarios(usuarios: dict):
-    """Salva o arquivo de usuários."""
-    _write(USUARIOS_FILE, usuarios)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM usuarios")
+    for username, u in usuarios.items():
+        cur.execute("""
+            INSERT INTO usuarios (username, senha, tipo, setores, permissoes)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            username,
+            u["senha"],
+            u["tipo"],
+            json.dumps(u.get("setores", [])),
+            json.dumps(u.get("permissoes", []))
+        ))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def criar_usuario(username, senha, tipo, setores, permissoes=None):
     u = carregar_usuarios()
@@ -169,15 +247,24 @@ def excluir_usuario(username):
 # ─── AUDITORIA ─────────────────────────────────────────────────────────
 
 def carregar_auditoria():
-    return _read(AUDITORIA_FILE, [])
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT * FROM auditoria ORDER BY id DESC")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
 
 def registrar_evento(usuario, acao, detalhes):
-    from datetime import datetime
-    ev = carregar_auditoria()
-    ev.append({
-        "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "usuario":   usuario,
-        "acao":      acao,
-        "detalhes":  detalhes
-    })
-    _write(AUDITORIA_FILE, ev)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO auditoria (data_hora, usuario, acao, detalhes)
+        VALUES (%s, %s, %s, %s)
+    """, (
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        usuario, acao, detalhes
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
