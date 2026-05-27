@@ -1,17 +1,31 @@
-import os, hashlib, base64, json
+import os, hashlib, base64, json, re
 from datetime import datetime
 from cryptography.fernet import Fernet
 import psycopg2
+from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
 # ─── CONEXÃO ───────────────────────────────────────────────────────────
 
+def _db_schema():
+    schema = os.environ.get("DB_SCHEMA", "cofreweb")
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
+        raise ValueError("DB_SCHEMA invalido.")
+    return schema
+
 def get_conn():
-    return psycopg2.connect(
+    conn = psycopg2.connect(
         os.environ.get("DATABASE_URL"),
         sslmode="require",
         connect_timeout=10
     )
+    schema = _db_schema()
+    cur = conn.cursor()
+    cur.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(sql.Identifier(schema)))
+    cur.execute(sql.SQL("SET search_path TO {}, public").format(sql.Identifier(schema)))
+    conn.commit()
+    cur.close()
+    return conn
 
 def init_db():
     conn = get_conn()
