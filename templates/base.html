@@ -389,6 +389,12 @@
 ══════════════════════════════════════════════════════ -->
 <script>
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/wake-sw.js").catch(() => {});
+  });
+}
+
 // ── TOAST GLOBAL ─────────────────────────────────────────────────────
 function showToastGlobal(msg, cor = "#059669") {
   const t = document.getElementById("toast-global");

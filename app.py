@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
 from functools import wraps
 from datetime import timedelta
 from collections import defaultdict
@@ -32,6 +32,150 @@ def verificar_tentativas(ip):
 @app.before_request
 def renovar_sessao():
     session.modified = True
+
+
+@app.route("/healthz")
+def healthz():
+    return jsonify({"ok": True})
+
+
+@app.route("/wake-sw.js")
+def wake_sw():
+    sw = r"""
+const WAKE_TIMEOUT = 900;
+
+function wakingScreen(targetUrl) {
+  const safeTarget = JSON.stringify(targetUrl);
+  return new Response(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cofre Digital - Acordando</title>
+<style>
+  :root {
+    --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e;
+    --accent:#4f8ef7; --accent2:#14b8a6; --text:#e2e8f0; --muted:#94a3b8;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); color:var(--text);
+    font-family:Arial, Helvetica, sans-serif; overflow:hidden;
+  }
+  body::before {
+    content:""; position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(79,142,247,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,142,247,.05) 1px, transparent 1px);
+    background-size:40px 40px;
+    mask-image:radial-gradient(ellipse 75% 75% at 50% 50%, black 25%, transparent 100%);
+  }
+  .wake {
+    position:relative; width:min(420px, 92vw); padding:34px 28px;
+    border:1px solid var(--border); border-radius:18px; background:rgba(17,17,24,.92);
+    text-align:center; box-shadow:0 28px 90px rgba(0,0,0,.55);
+  }
+  .vault {
+    width:94px; height:94px; margin:0 auto 22px; border-radius:28px;
+    display:grid; place-items:center; position:relative;
+    background:linear-gradient(145deg, #172033, #101018);
+    border:1px solid rgba(79,142,247,.35);
+    box-shadow:0 0 36px rgba(79,142,247,.22);
+  }
+  .vault::before {
+    content:""; width:48px; height:48px; border-radius:50%;
+    border:7px solid var(--accent); border-top-color:var(--accent2);
+    animation:spin 1.1s linear infinite;
+  }
+  .pulse {
+    position:absolute; inset:-12px; border:1px solid rgba(79,142,247,.35);
+    border-radius:34px; animation:pulse 1.7s ease-out infinite;
+  }
+  h1 { font-size:24px; margin-bottom:8px; letter-spacing:.2px; }
+  p { color:var(--muted); font-size:14px; line-height:1.55; }
+  .dots::after { content:""; animation:dots 1.4s steps(4,end) infinite; }
+  .bar {
+    height:5px; width:100%; overflow:hidden; border-radius:999px;
+    background:#1f2937; margin-top:24px;
+  }
+  .bar span {
+    display:block; width:42%; height:100%; border-radius:999px;
+    background:linear-gradient(90deg, var(--accent), var(--accent2));
+    animation:slide 1.25s ease-in-out infinite;
+  }
+  .status { margin-top:14px; font-size:12px; color:#64748b; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes pulse { to { transform:scale(1.18); opacity:0; } }
+  @keyframes slide {
+    0% { transform:translateX(-110%); }
+    50% { transform:translateX(70%); }
+    100% { transform:translateX(250%); }
+  }
+  @keyframes dots {
+    0% { content:""; } 25% { content:"."; } 50% { content:".."; } 75%,100% { content:"..."; }
+  }
+</style>
+</head>
+<body>
+  <main class="wake">
+    <div class="vault"><span class="pulse"></span></div>
+    <h1>Acordando o Cofre</h1>
+    <p>O servidor gratuito estava em descanso. Estamos reconectando com seguranca<span class="dots"></span></p>
+    <div class="bar"><span></span></div>
+    <div class="status" id="status">Tentando novamente...</div>
+  </main>
+  <script>
+    const target = ${safeTarget};
+    const status = document.getElementById("status");
+    let tries = 0;
+
+    async function retry() {
+      tries += 1;
+      status.textContent = "Tentativa " + tries + " de reconexao";
+      try {
+        const response = await fetch(target, { cache: "no-store", credentials: "include" });
+        if (response.ok || response.redirected) {
+          window.location.replace(target);
+          return;
+        }
+      } catch (error) {}
+      setTimeout(retry, Math.min(1800 + tries * 400, 5000));
+    }
+    setTimeout(retry, 800);
+  </script>
+</body>
+</html>`, {
+    headers: { "Content-Type": "text/html; charset=utf-8" }
+  });
+}
+
+self.addEventListener("install", event => self.skipWaiting());
+self.addEventListener("activate", event => event.waitUntil(self.clients.claim()));
+
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  if (request.mode !== "navigate" || request.method !== "GET") return;
+
+  event.respondWith((async () => {
+    const network = fetch(request);
+    const timeout = new Promise(resolve => {
+      setTimeout(() => resolve(wakingScreen(request.url)), WAKE_TIMEOUT);
+    });
+
+    try {
+      return await Promise.race([network, timeout]);
+    } catch (error) {
+      return wakingScreen(request.url);
+    }
+  })());
+});
+"""
+    return Response(
+        sw,
+        mimetype="application/javascript",
+        headers={"Cache-Control": "no-store"}
+    )
 
 
 # ─── DECORADORES ───────────────────────────────────────────────────────────
